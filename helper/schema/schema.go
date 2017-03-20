@@ -477,7 +477,9 @@ func (m schemaMap) Input(
 
 		// Skip things that don't require config, if that is even valid
 		// for a provider schema.
-		if !v.Required && !v.Optional {
+		// Required XOR Optional must always be true to validate, so we only
+		// need to check one.
+		if v.Optional {
 			continue
 		}
 
@@ -1356,6 +1358,13 @@ func getValueType(k string, schema *Schema) (ValueType, error) {
 		if vt, ok := s.Elem.(ValueType); ok {
 			return vt, nil
 		}
+	}
+
+	if _, ok := schema.Elem.(*Resource); ok {
+		// TODO: We don't actually support this (yet)
+		// but silently pass the validation, until we decide
+		// how to handle nested structures in maps
+		return TypeString, nil
 	}
 	return 0, fmt.Errorf("%s: unexpected map value type: %#v", k, schema.Elem)
 }

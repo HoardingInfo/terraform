@@ -34,6 +34,12 @@ func resourceComputeInstanceV2() *schema.Resource {
 		Update: resourceComputeInstanceV2Update,
 		Delete: resourceComputeInstanceV2Delete,
 
+		Timeouts: &schema.ResourceTimeout{
+			Create: schema.DefaultTimeout(30 * time.Minute),
+			Update: schema.DefaultTimeout(30 * time.Minute),
+			Delete: schema.DefaultTimeout(30 * time.Minute),
+		},
+
 		Schema: map[string]*schema.Schema{
 			"region": &schema.Schema{
 				Type:        schema.TypeString,
@@ -324,6 +330,11 @@ func resourceComputeInstanceV2() *schema.Resource {
 				Optional: true,
 				Default:  false,
 			},
+			"force_delete": &schema.Schema{
+				Type:     schema.TypeBool,
+				Optional: true,
+				Default:  false,
+			},
 		},
 	}
 }
@@ -452,7 +463,7 @@ func resourceComputeInstanceV2Create(d *schema.ResourceData, meta interface{}) e
 		Pending:    []string{"BUILD"},
 		Target:     []string{"ACTIVE"},
 		Refresh:    ServerV2StateRefreshFunc(computeClient, server.ID),
-		Timeout:    30 * time.Minute,
+		Timeout:    d.Timeout(schema.TimeoutCreate),
 		Delay:      10 * time.Second,
 		MinTimeout: 3 * time.Second,
 	}
@@ -803,7 +814,7 @@ func resourceComputeInstanceV2Update(d *schema.ResourceData, meta interface{}) e
 			Pending:    []string{"RESIZE"},
 			Target:     []string{"VERIFY_RESIZE"},
 			Refresh:    ServerV2StateRefreshFunc(computeClient, d.Id()),
-			Timeout:    30 * time.Minute,
+			Timeout:    d.Timeout(schema.TimeoutUpdate),
 			Delay:      10 * time.Second,
 			MinTimeout: 3 * time.Second,
 		}
@@ -824,7 +835,7 @@ func resourceComputeInstanceV2Update(d *schema.ResourceData, meta interface{}) e
 			Pending:    []string{"VERIFY_RESIZE"},
 			Target:     []string{"ACTIVE"},
 			Refresh:    ServerV2StateRefreshFunc(computeClient, d.Id()),
-			Timeout:    30 * time.Minute,
+			Timeout:    d.Timeout(schema.TimeoutUpdate),
 			Delay:      10 * time.Second,
 			MinTimeout: 3 * time.Second,
 		}
@@ -882,9 +893,18 @@ func resourceComputeInstanceV2Delete(d *schema.ResourceData, meta interface{}) e
 		}
 	}
 
-	err = servers.Delete(computeClient, d.Id()).ExtractErr()
-	if err != nil {
-		return fmt.Errorf("Error deleting OpenStack server: %s", err)
+	if d.Get("force_delete").(bool) {
+		log.Printf("[DEBUG] Force deleting OpenStack Instance %s", d.Id())
+		err = servers.ForceDelete(computeClient, d.Id()).ExtractErr()
+		if err != nil {
+			return fmt.Errorf("Error deleting OpenStack server: %s", err)
+		}
+	} else {
+		log.Printf("[DEBUG] Deleting OpenStack Instance %s", d.Id())
+		err = servers.Delete(computeClient, d.Id()).ExtractErr()
+		if err != nil {
+			return fmt.Errorf("Error deleting OpenStack server: %s", err)
+		}
 	}
 
 	// Wait for the instance to delete before moving on.
@@ -894,7 +914,7 @@ func resourceComputeInstanceV2Delete(d *schema.ResourceData, meta interface{}) e
 		Pending:    []string{"ACTIVE", "SHUTOFF"},
 		Target:     []string{"DELETED"},
 		Refresh:    ServerV2StateRefreshFunc(computeClient, d.Id()),
-		Timeout:    30 * time.Minute,
+		Timeout:    d.Timeout(schema.TimeoutDelete),
 		Delay:      10 * time.Second,
 		MinTimeout: 3 * time.Second,
 	}

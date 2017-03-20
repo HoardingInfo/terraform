@@ -622,6 +622,40 @@ func TestAccComputeV2Instance_metadataRemove(t *testing.T) {
 	})
 }
 
+func TestAccComputeV2Instance_forceDelete(t *testing.T) {
+	var instance servers.Server
+	resource.Test(t, resource.TestCase{
+		PreCheck:     func() { testAccPreCheck(t) },
+		Providers:    testAccProviders,
+		CheckDestroy: testAccCheckComputeV2InstanceDestroy,
+		Steps: []resource.TestStep{
+			resource.TestStep{
+				Config: testAccComputeV2Instance_forceDelete,
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckComputeV2InstanceExists("openstack_compute_instance_v2.instance_1", &instance),
+				),
+			},
+		},
+	})
+}
+
+func TestAccComputeV2Instance_timeout(t *testing.T) {
+	var instance servers.Server
+	resource.Test(t, resource.TestCase{
+		PreCheck:     func() { testAccPreCheck(t) },
+		Providers:    testAccProviders,
+		CheckDestroy: testAccCheckComputeV2InstanceDestroy,
+		Steps: []resource.TestStep{
+			resource.TestStep{
+				Config: testAccComputeV2Instance_timeout,
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckComputeV2InstanceExists("openstack_compute_instance_v2.instance_1", &instance),
+				),
+			},
+		},
+	})
+}
+
 func testAccCheckComputeV2InstanceDestroy(s *terraform.State) error {
 	config := testAccProvider.Meta().(*Config)
 	computeClient, err := config.computeV2Client(OS_REGION_NAME)
@@ -1512,6 +1546,25 @@ resource "openstack_compute_instance_v2" "instance_1" {
   metadata {
     foo = "bar"
     ghi = "jkl"
+  }
+}
+`
+
+const testAccComputeV2Instance_forceDelete = `
+resource "openstack_compute_instance_v2" "instance_1" {
+  name = "instance_1"
+  security_groups = ["default"]
+  force_delete = true
+}
+`
+
+const testAccComputeV2Instance_timeout = `
+resource "openstack_compute_instance_v2" "instance_1" {
+  name = "instance_1"
+  security_groups = ["default"]
+
+  timeouts {
+    create = "10m"
   }
 }
 `
